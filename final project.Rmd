@@ -1,0 +1,519 @@
+---
+title: "Final project"
+author: "Mavis Fosuaa Boateng"
+date: "2024-07-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load packages 
+if(!require(pacman)) install.packages("pacman")
+pacman::p_load(tidyverse, gapminder,
+               here,visdat, 
+               inspectdf,
+               countrycode,   bslib, bsicons, shiny, 
+               rnaturalearth, plotly, htmltools, 
+               reactable,sf,ggplot2,sf, 
+               rgeoboundaries
+               )
+
+```
+
+# Data Importation
+
+Raw dataset is about:
+
+1.The total number of cases of malaria reported within a year. Malaria cases reported. (*C:/Users/mboateng21/Downloads/malaria_number_of_cases_reported.csv*)
+
+
+```{r}
+TB_old_cases <- read.csv(here("C:/Users/mboateng21/Downloads/TB/sh_tbs_incd.csv"))
+
+TB_new_cases<-read.csv(here("C:/Users/mboateng21/Downloads/TB/all_forms_of_tb_incidence_estimated.csv"))
+
+TB_deaths<-read.csv(here("C:/Users/mboateng21/Downloads/TB/all_forms_of_tb_deaths_per_100000_estimated.csv"))
+
+TB_treated<-read.csv(here("C:/Users/mboateng21/Downloads/TB/sh_tbs_cure_zs.csv"))
+```
+
+
+
+```{r}
+# Show the first 6 rows
+head(TB_old_cases)
+str(TB_old_cases)
+
+head(TB_new_cases)
+str(TB_new_cases)
+
+head(TB_deaths)
+str(TB_deaths)
+
+head(TB_treated)
+str(TB_treated)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+# Create visdat plot
+vis_dat (TB_cases)
+```
+
+```{r}
+inspect_cat(TB_old_cases) %>%
+ show_plot()
+
+inspect_cat(TB_new_cases) %>%
+ show_plot()
+```
+
+# Data Cleaning
+
+## Pivot to Long Format
+
+Converting the datasets from wide to long format will make merging easier.
+
+#Data cleaning for old TB Cases
+```{r long-format-total}
+# Filter columns to only include the years 2010 to 2020
+TB_cases_filtered  <- TB_old_cases %>%
+  select(country, `X2010`: `X2020`)
+
+# Converting from wide to long format
+TB_cases_long <-  TB_cases_filtered%>%
+  pivot_longer(
+    cols = -country,       # Exclude the 'country' column
+    names_to = "year",     # Name of the new 'year' column
+    values_to = "cases" # Name of the new 'total_cases' column
+  )
+
+# View the long format data
+print(TB_cases_long)
+
+
+
+# Remove 'X' from the 'year' column
+TB_cases_long$year <- gsub('X', '', TB_cases_long$year)
+
+# Convert 'year' column to numeric
+TB_cases_long$year <- as.numeric(TB_cases_long$year)
+
+# View the updated dataframe
+print(TB_cases_long)
+
+# Remove the decimal point and convert back to numeric
+TB_cases_long$cases <- as.numeric(as.integer(TB_cases_long$cases))
+
+# Print the updated dataframe
+print(TB_cases_long)
+
+```
+
+
+
+
+## Converting the TB_new_cases dataset from wide to long format and other data cleaning
+
+
+```{r long-format-total}
+# Filter columns to only include the years 2010 to 2020
+TB_new_cases_filtered  <- TB_new_cases %>%
+  select(country, `X2010`: `X2020`)
+
+# Converting from wide to long format
+TB_new_long <-  TB_new_cases_filtered%>%
+  pivot_longer(
+    cols = -country,       # Exclude the 'country' column
+    names_to = "year",     # Name of the new 'year' column
+    values_to = "new_cases" # Name of the new 'total_cases' column
+  )
+
+# View the long format data
+print(TB_new_long)
+
+
+# Remove 'X' from the 'year' column
+TB_new_long$year <- gsub('X', '', TB_new_long$year)
+
+# Convert 'year' column to numeric
+TB_new_long$year <- as.numeric(TB_new_long$year)
+# View the updated dataframe
+print(TB_new_long)
+
+
+
+# Convert data types from chr to num
+
+TB_new_long <- TB_new_long %>%
+  mutate(
+    # Convert year to numeric
+    year = as.numeric(year),
+    # Remove 'k' and 'M' and convert to numeric
+    new_cases= case_when(
+      str_detect(new_cases, 'k$') ~ as.numeric(str_remove(new_cases, 'k')) * 1000,
+      str_detect(new_cases, 'M$') ~ as.numeric(str_remove(new_cases, 'M')) * 1000000,
+      TRUE ~ as.numeric(new_cases)
+    ))
+```
+
+
+
+
+
+## Data cleaning for number of TB deaths.Converting the dataset from wide to long format.
+
+
+```{r long-format-total}
+# Filter columns to only include the years 2010 to 2020
+TB_deaths_filtered  <- TB_deaths %>%
+  select(country, `X2010`: `X2020`)
+
+# Converting from wide to long format
+TB_mortality <-  TB_deaths_filtered%>%
+  pivot_longer(
+    cols = -country,       # Exclude the 'country' column
+    names_to = "year",     # Name of the new 'year' column
+    values_to = "deaths" # Name of the new 'total_cases' column
+  )
+
+# View the long format data
+print(TB_mortality)
+
+
+# Remove 'X' from the 'year' column
+TB_mortality$year <- gsub('X', '', TB_mortality$year)
+
+# Convert 'year' column to numeric
+TB_mortality$year <- as.numeric(TB_mortality$year)
+
+# View the updated dataframe
+print(TB_mortality)
+
+# Remove the decimal point and convert back to numeric
+TB_mortality$deaths <- as.numeric(as.integer(TB_mortality$deaths))
+
+# Print the updated dataframe
+print(TB_mortality)
+
+```
+
+
+## Data cleaning for number of TB cases treatment.Converting the dataset from wide to long format.
+
+
+```{r long-format-total}
+# Filter columns to only include the years 2010 to 2020
+TB_treated_filtered  <- TB_treated %>%
+  select(country, `X2010`: `X2020`)
+
+# Converting from wide to long format
+TB_cases_treated <-  TB_treated_filtered%>%
+  pivot_longer(
+    cols = -country,       # Exclude the 'country' column
+    names_to = "year",     # Name of the new 'year' column
+    values_to = "treated" # Name of the new 'total_cases' column
+  )
+
+# View the long format data
+print(TB_cases_treated)
+
+
+# Remove 'X' from the 'year' column
+TB_cases_treated$year <- gsub('X', '', TB_cases_treated$year)
+
+# Convert 'year' column to numeric
+TB_cases_treated$year <- as.numeric(TB_cases_treated$year)
+
+# View the updated dataframe
+print(TB_cases_treated)
+
+
+```
+## Joining Datasets
+
+Join the datasets using the common keys, `country` and `year`.
+
+```{r join-datasets}
+
+# Perform the left join
+TB_cases_combined <- left_join(TB_cases_long,TB_new_long,
+                              by = c("country", "year"))
+
+TB_combined <- left_join(TB_cases_combined,TB_mortality,
+                           by = c("country", "year"))
+
+TB_data <- left_join(TB_combined, TB_cases_treated, 
+                     by = c("country", "year"))
+
+# View the combined dataset
+print(TB_data)
+
+
+#Remove unwanted column and rename
+
+#library(dplyr)
+#TB_data <- TB_data %>%
+ # select( -estimated.y)
+
+#TB_data <- TB_data %>%
+  #rename(estimated = estimated.x)
+
+
+
+
+```
+
+
+
+```{r}
+TB_dataset <- TB_data %>%
+  mutate(total_cases = cases+ new_cases)
+
+# Print the updated data frame
+print("Updated Data Frame with new_column:")
+print(TB_dataset)
+```
+
+
+
+
+
+# Line graphs showing the confirmed cases of TB cases among three selected countries 
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+
+# Correct number of repetitions for the 'country' column
+countries <- rep(c("Zimbabwe", "South Africa", "India"), each = 11)
+
+# Correct number of years
+years <- rep(2010:2020, times = 3)
+
+
+# Create the combined plot
+plot <- ggplot(TB_dataset, aes(x = year, y = total_cases, color = country)) +
+  geom_line(size = 1) +                   # Line size
+  geom_point(size = 3) +                  # Point size
+  labs(
+    title = "TB Cases in Zimbabwe, South Africa, and India",
+    x = "Year",
+    y = "TB Cases"
+  ) +
+  theme_minimal(base_size = 15) +         # Base font size for theme
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 20),  # Center the title
+    axis.title.x = element_text(size = 14, face = "bold"),             # X-axis title
+    axis.title.y = element_text(size = 14, face = "bold"),             # Y-axis title
+    axis.text.x = element_text(angle = 45, hjust = 1),                 # X-axis text
+    panel.grid.major = element_line(color = "gray", size = 0.5),       # Major grid lines
+    panel.grid.minor = element_line(color = "lightgray", size = 0.25)  # Minor grid lines
+  ) +
+  scale_color_brewer(palette = "Set1")    # Color palette for the lines
+
+# Print the combined plot
+print(plot)
+```
+
+
+```{r}
+# Correct number of repetitions for the 'country' column
+countries <- rep(c("Zimbabwe", "South Africa", "India"), each = 11)
+
+# Correct number of years
+years <- rep(2010:2020, times = 3)
+
+
+# List of countries to plot
+country_list <- c("Zimbabwe", "South Africa", "India")
+
+# Loop through each country and create the plot
+for (i in country_list) {
+  # Subset data for the current country
+  country_data <- subset(TB_dataset, country == i)
+  
+  # Create the plot
+  plot <- ggplot(country_data, aes(x = year, y = total_cases)) +
+    geom_line(color = "steelblue", size = 1) +          # Line color and size
+    geom_point(color = "darkred", size = 3) +           # Points color and size
+    labs(
+      title = paste("TB Cases in", i),
+      x = "Year",
+      y = "total_cases"
+    ) +
+    theme_minimal(base_size = 15) +                     # Base font size for theme
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 20),  # Center the title
+      axis.title.x = element_text(size = 14, face = "bold"),             # X-axis title
+      axis.title.y = element_text(size = 14, face = "bold"),             # Y-axis title
+      axis.text.x = element_text(angle = 45, hjust = 1),                 # X-axis text
+      panel.grid.major = element_line(color = "gray", size = 0.5),       # Major grid lines
+      panel.grid.minor = element_line(color = "lightgray", size = 0.25)  # Minor grid lines
+    )+
+  scale_color_brewer(palette = "Set1")    # Color palette for the lines
+  
+  # Print the plot
+  print(plot)
+}
+
+```
+
+
+
+
+## Standardizing Country Names
+
+Converting Country Names to ISO Codes: You can use the `countrycode()` function to map your dataset's country names to their corresponding ISO codes.
+
+For example here I add ISO codes to each dataset for a consistent joining key.
+
+```{r add-iso}
+TB_dataset <- TB_dataset %>%
+  mutate(country_iso = countrycode(country, 
+                                   "country.name", 
+                                   "iso3c"))
+```
+
+# Adding population data
+
+
+```{r}
+pop <- tidyr::population
+
+pop
+ 
+```
+
+
+
+
+
+Now, do the same for the `pop` data frame:
+
+```{r}
+# Add 3- letter ISO code to pop
+pop_iso <- pop %>%
+mutate(country_iso = countrycode(country, 
+                                   "country.name", 
+                                   "iso3c"))
+```
+
+
+## Joining with Population Data
+
+
+```{r population-join}
+# Ensure the 'year' column in both datasets is of the same type
+pop_iso <- pop_iso %>%
+  mutate(year = as.character(year))  # Convert 'year' to character
+
+
+
+
+# Ensure the 'year' column in hiv_data_combined is also of type character
+TB_dataset <- TB_dataset %>%
+  mutate(year = as.character(year))  # Convert 'year' to character
+
+# Join on ISO code and year
+final_dataset <-
+  left_join(pop_iso,TB_dataset,
+by =c("country_iso","year") )
+
+final_dataset <- final_dataset%>% rename(country = country.x)  
+  
+```
+
+
+ 
+Remove unwanted columns
+```{r}
+#Remove unwanted and duplicate columns named
+library(dplyr)
+
+# Assuming final_dataset is your dataframe and you want to remove the columns "country.y", "cases.x", and "cases.y"
+data_complete <- final_dataset %>%
+  select(-country.y, -cases.x, -cases.y)
+
+# Print the updated dataframe
+print(data_complete)
+
+
+```
+
+```{r}
+#Print the first few rows of the transformed data
+print(head(data_complete, 20))
+
+# Check for NA values in the total_cases column
+na_count <- sum(is.na(data_complete$malaria_cases_numeric))
+print(paste("Number of NA values in malaria_cases_numeric:", na_count))
+
+```
+
+
+
+
+
+
+
+
+
+
+# Mapping country borders with `{rnaturalearth}`
+
+• Let's draw a world map with country borders.
+
+• `{rnaturalearth}` can map all the countries in the world, among others.
+
+• Use `ne_countries()` with the `returnclass = "sf"` argument.
+
+
+```{r}
+# Load the map data
+countries <- ne_countries(scale="medium", returnclass = "sf")
+ggplot(data = countries) +
+geom_sf()
+
+
+# Filter the data for the latest year available
+latest_year <- final_dataset %>%
+  filter(!is.na(year)) %>%
+  summarise(latest_year = max(as.numeric(year), na.rm = TRUE)) %>%
+  pull(latest_year)
+
+latest_data <- final_dataset %>%
+  filter(year == latest_year)
+```
+
+
+```{r}
+
+world_data <- countries %>%
+  left_join(latest_data, by = c("iso_a3" = "country_iso"))
+
+# Create the choropleth map
+ggplot(data = world_data) +
+  geom_sf(aes(fill =total_cases ), color = "grey", size = 0.1) +
+  scale_fill_viridis_c(option = "plasma", trans = "log10", na.value = "darkblue", 
+                       name = "TB_cases") +
+  theme_minimal() +
+  labs(
+    title = paste("Global Tuberculosis prevalence in", latest_year),
+    subtitle = "Choropleth map showing Tuberculosis cases per 100k population",
+    caption = "Source: Tuberculosis data and rnaturalearth dataset"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  )
+
+```
+
+
+
