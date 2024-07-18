@@ -1,0 +1,307 @@
+---
+title: "GLOBAL TUBERCULOSIS TREND 2020"
+format: dashboard
+theme: lux
+---
+
+```{r}
+# Load packages 
+if(!require(pacman)) install.packages("pacman")
+pacman::p_load(tidyverse,
+               here, bslib, bsicons, 
+               rnaturalearth, plotly, htmltools, 
+               reactable,janitor,sf,countrycode 
+               )
+```
+
+
+```{r}
+#Loading data
+tb_2020_data <- read.csv(here("data/TB.dataset.csv")) %>% 
+  filter(year==2020)
+```
+
+
+
+```{r}
+# Calculate the total population with TB
+tb_prevalence  <- sum(tb_2020_data$total_cases, na.rm = TRUE,1)
+
+
+highest_prevalence_country <- 
+  tb_2020_data %>% 
+  arrange(-total_cases) %>% 
+  head(1) %>% 
+  pull(country)
+
+
+lowest_prevalence_country <- 
+  tb_2020_data %>% 
+  arrange(total_cases) %>% 
+  head(1) %>% 
+  pull(country)
+
+```
+
+
+```{r}
+
+# Load the map data
+countries <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Filter the data for the latest year available
+latest_year <- tb_2020_data %>%
+  filter(!is.na(year)) %>%
+  summarise(latest_year = max(as.numeric(year), na.rm = TRUE)) %>%
+  pull(latest_year)
+
+# Filter the latest data and create the tooltip_label
+latest_data <- tb_2020_data %>%
+  filter(year == latest_year) %>%
+  mutate(tooltip_label = paste("Country:", country, "<br>Total Cases:", total_cases))
+
+# Merge the latest data with the map data
+world_data <- left_join(countries, latest_data, by = c("iso_a3" = "country_iso"))
+
+# Create the choropleth map
+map <- ggplot(data = world_data) +
+  geom_sf(aes(fill = total_cases, text = tooltip_label), color = "darkblue", size = 2.0) +
+  scale_fill_viridis_c(option = "plasma", trans = "log10", na.value = "grey", 
+                       name = "TB Cases") +
+  theme_minimal() +
+  labs(
+    title = paste("Global Tuberculosis Prevalence", latest_year),
+    caption = "Source: Gapminder and rnaturalearth dataset"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    legend.position = "none"
+  )
+
+# Convert ggplot to plotly for interactivity
+tb_map <- ggplotly(map, tooltip = "text")
+
+```
+
+
+```{r}
+# Group by country and summarize total cases
+cases_per_country_data <- tb_2020_data %>%
+  group_by(country) %>%
+  summarise(total_cases = sum(total_cases, na.rm = TRUE))
+
+
+# Filter top 10 countries with highest cases
+top_10_countries <- tb_2020_data %>%
+  arrange(desc(total_cases)) %>%
+  head(10) %>% 
+  mutate(tooltip_label=paste(country,
+                              round(total_cases,1),
+                              sep=":")) %>% 
+  ggplot(aes(y = reorder(country, total_cases), 
+             x = total_cases, 
+             fill=total_cases,
+             text = tooltip_label)) +
+  geom_col() +
+    geom_text(aes(label=round(total_cases,1)),
+              nudege_x=-10,
+              color="#FA9E13"
+              )+
+  labs( x = "Total Cases" )+
+  theme(legand.position="none")
+
+# Convert ggplot to plotly for interactivity
+ top_10 <-ggplotly(top_10_countries, tooltip = "text")
+
+
+```
+
+# HOME
+
+## Row 1 {height= 25%}
+
+```{r}
+value_box(
+  title = "TB Cases 2020",
+  value = tb_prevalence,
+  showcase = bsicons::bs_icon("asterisk"),
+  theme = value_box_theme(bg = "#9C1020"))
+```
+
+```{r}
+value_box(
+  title = "Highest prevalence 2020",
+  value =highest_prevalence_country,
+  showcase = bsicons::bs_icon("graph-up-arrow"),
+  theme = value_box_theme(bg = "#D20103")
+  )
+```
+
+```{r}
+value_box(
+  title = "Lowest prevalence 2020",
+  value = lowest_prevalence_country,
+  showcase = bsicons::bs_icon("graph-down-arrow"),
+  theme = value_box_theme(bg = "#9C5B10"))
+```
+
+## ROW 2 {height="75%"}
+
+### {width=70%}
+
+```{r}
+tb_map
+```
+
+
+###  {width="30%"}
+
+```{r title = "Top 10 Countries with TB"}
+top_10
+```
+
+
+
+
+# TREATMENT SUCCESS
+
+
+```{r}
+
+average_treatment_success <- tb_2020_data %>% 
+  summarise(avg_treatment_rate = mean(treatment, na.rm = TRUE),1)%>% 
+  round(1)
+
+
+highest_treatment_success <- 
+  tb_2020_data %>% 
+  arrange(-treatment) %>% 
+  slice(1) %>% 
+  pull(country)
+
+
+lowest_treatment_success <- 
+  tb_2020_data %>% 
+  arrange(treatment) %>% 
+  slice(1) %>%
+  pull(country)
+
+```
+
+
+
+
+```{r}
+# Load the map data
+countries <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Filter the data for the latest year available
+latest_year <- tb_2020_data %>%
+  filter(!is.na(year)) %>%
+  summarise(latest_year = max(as.numeric(year), na.rm = TRUE)) %>%
+  pull(latest_year)
+
+# Filter the latest data and create the tooltip_label
+latest_data <- tb_2020_data %>%
+  filter(year == latest_year) %>%
+  mutate(tooltip_label = paste("Country:", country, "<br>Total Cases:", treatment))
+
+# Merge the latest data with the map data
+world_data <- left_join(countries, latest_data, by = c("iso_a3" = "country_iso"))
+ 
+
+plot_treatment_success<-
+  world_data %>% ggplot()+
+  geom_sf(mapping=aes(fill=treatment,text = tooltip_label))+
+  scale_fill_continuous(trans="reverse")+
+  theme_minimal()
+
+# Convert ggplot to plotly for interactivity
+ treatment_2020<-ggplotly(plot_treatment_success, tooltip = "text")
+
+```
+
+
+
+## Row 1 {height= 25%}
+
+```{r}
+value_box(
+  title = "Average Treatment Success",
+  value = average_treatment_success,
+  showcase = bsicons::bs_icon("award-fill"),
+  theme = value_box_theme(bg = "#5DE9B8")
+)
+```
+```{r}
+value_box(
+  title="Country with most treatment success",
+  value=highest_treatment_success,
+  showcase=bsicons::bs_icon("heart"),
+  theme=value_box_theme(bg ="#61E44C"))
+
+```
+
+
+
+```{r}
+value_box(
+  title = "Country with least treatment success",
+  value = lowest_treatment_success,
+  showcase = bsicons::bs_icon("thermometer"),
+  theme = value_box_theme(bg ="#026673"))
+```
+
+
+
+## Row 2 {height=75%}
+
+### {width=80%}
+```{r title = "Treatment Success by Countries 2020"}
+treatment_2020
+```
+
+
+
+
+# DOWNLOAD DATA
+
+The data used in this dashboard is shown below and can be downloaded as a CSV.
+```{r}
+library(htmltools)
+
+htmltools::browsable(
+  tagList(
+    reactable(tb_2020_data, 
+              elementId = "TB-table", 
+              searchable = T, 
+              filterable = T), 
+    
+tags$button("Download as CSV", 
+            onclick = 
+              "Reactable.downloadDataCSV('TB-table')")
+  )
+)
+```
+
+# ABOUT
+
+This data comes from the r `gapminder` package, and is originally sourced from the Gapminder Foundation.
+
+The Gapminder Foundation is a non-profit venture registered in Stockholm, Sweden, that promotes sustainable global development and achievement of the United Nations Millennium Development Goals by increased use and understanding of statistics and other information about social, economic, and environmental development at local, national, and global levels.
+
+Tuberculosis is caused by bacteria (Mycobacterium tuberculosis) and it most often affects the lungs. TB is spread through the air when people with lung TB cough, sneeze or spit. A person needs to inhale only a few germs to become infected.
+
+Every year, 10 million people fall ill with tuberculosis (TB). Despite being a preventable and curable disease, 1.5 million people die from TB each year – making it the world’s top infectious killer.
+
+TB is the leading cause of death of people with HIV and also a major contributor to antimicrobial resistance.People infected with TB bacteria have a 5–10% lifetime risk of falling ill with TB. Those with compromised immune systems, such as people living with HIV, malnutrition or diabetes, or people who use tobacco, have a higher risk of falling ill.
+
+TB incidence per 100,000 estimated all forms of Tb data; TB in data captures incidence of tuberculosis per 100,000 people.It also captures the proportion of estimated new and relapse TB cases that were notified  and treated by health facilities in the country during the given year.
+
+This dataset also includes data on tuberculosis treatment success rate (% of new cases)
+
+https://www.gapminder.org/data/
+
